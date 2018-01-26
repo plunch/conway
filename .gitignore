@@ -1,0 +1,6 @@
+# binary
+conway
+# test data
+patterns/
+*.o
+*.d
