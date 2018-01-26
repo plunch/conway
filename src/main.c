@@ -172,8 +172,8 @@ int main(int argc, char *argv[])
 			display.view.x = patt_bounds.west - 4;
 			display.view.y = patt_bounds.north - 4;
 
-			display.view.w = patt_bounds.east - display.view.x + 8;
-			display.view.h = patt_bounds.south - display.view.y + 8;
+			display.view.w = patt_bounds.east - display.view.x + 4;
+			display.view.h = patt_bounds.south - display.view.y + 4;
 		} else {
 			display.view.w = 200 / display.view.scale;
 			display.view.h = 150 / display.view.scale;
