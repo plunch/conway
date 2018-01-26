@@ -13,10 +13,27 @@
 #include <stdlib.h> /* atoi */
 
 
+static void help()
+{
+	fprintf(stderr,
+	        "Usage: conway [OPTION]... [FILE]\n"
+	        "Options:\n"
+	        "	-h	display this help screen.\n"
+	        "	-f	run as fast as possible.\n"
+	        "	-c	debug underlying data structures with colors.\n"
+	        "	-s	number of milliseconds per generation.\n"
+	       "	-b	view bounds and scale (x:y:w:h:scale).\n"
+	        "	-t	where to place the pattern's top left (x:y).\n"
+	        "	-r	read RLE input.\n"
+	        "\n"
+	        "With no FILE, or when FILE is -, read standard input.\n");
+}
+
 int main(int argc, char *argv[])
 {
 	if (BUCKETSZ % VALUE_BIT) {
-		fprintf(stderr, "Size of bucket (%i) must be evenly divisible by number of bytes in the value-word\n",
+		fprintf(stderr, "Size of bucket (%i) must be evenly divisible "
+		                "by number of bytes in the value-word\n",
 		        BUCKETSZ);
 		return 1;
 	}
@@ -38,17 +55,7 @@ int main(int argc, char *argv[])
 	while((c = getopt(argc, argv, "hcrfs:b:t:")) != -1) {
 		switch(c) {
 		case 'h':
-			fprintf(stderr, "Usage: conway [OPTION]... [FILE]\n"
-			                "Options:\n"
-			                "	-h	display this help screen.\n"
-			                "	-f	run as fast as possible.\n"
-			                "	-c	debug underlying data structures with colors.\n"
-			                "	-s	number of milliseconds per generation.\n"
-			                "	-b	view bounds and scale (x:y:w:h:scale).\n"
-			                "	-t	where to place the pattern's top left (x:y).\n"
-			                "	-r	read RLE input.\n"
-			                "\n"
-			                "With no FILE, or when FILE is -, read standard input.\n");
+			help();
 			return 0;
 		case 'c':
 			//dbg = 1;
@@ -168,7 +175,8 @@ int main(int argc, char *argv[])
 		fclose(stream);
 
 	if (display.view.w == 0 || display.view.h == 0) {
-		if (patt_bounds.w_set && patt_bounds.e_set && patt_bounds.n_set && patt_bounds.s_set) {
+		if (patt_bounds.w_set && patt_bounds.e_set
+		 && patt_bounds.n_set && patt_bounds.s_set) {
 			display.view.x = patt_bounds.west - 4;
 			display.view.y = patt_bounds.north - 4;
 

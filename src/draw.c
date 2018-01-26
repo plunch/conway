@@ -37,8 +37,10 @@ int draw_create(struct draw *draw)
 	if (!data->wasInit && SDL_Init(SDL_INIT_VIDEO) < 0)
 		goto exit;
 
-	data->window = SDL_CreateWindow("conway", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-	                                draw->view.w * draw->view.scale, draw->view.h * draw->view.scale,
+	data->window = SDL_CreateWindow("conway", SDL_WINDOWPOS_UNDEFINED,
+	                                          SDL_WINDOWPOS_UNDEFINED,
+	                                draw->view.w * draw->view.scale,
+	                                draw->view.h * draw->view.scale,
 	                                SDL_WINDOW_RESIZABLE);
 	if (!data->window)
 		goto exit;
@@ -89,8 +91,10 @@ enum draw_update_result draw_update(struct draw *draw)
 		case SDL_WINDOWEVENT:
 			switch(e.window.event) {
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
-				w = ((int)e.window.data1 - d->screen->w) / draw->view.scale;
-				h = ((int)e.window.data2 - d->screen->h) / draw->view.scale;
+				w = ((int)e.window.data1 - d->screen->w)
+				        / draw->view.scale;
+				h = ((int)e.window.data2 - d->screen->h) 
+				        / draw->view.scale;
 				draw->view.w = (int)draw->view.w + w;
 				draw->view.h = (int)draw->view.h + h;
 				d->screen = SDL_GetWindowSurface(d->window);
@@ -103,10 +107,14 @@ enum draw_update_result draw_update(struct draw *draw)
 
 		case SDL_MOUSEMOTION:
 			if (e.motion.state & SDL_BUTTON_LMASK) {
-				x = (e.motion.xrel + d->xrelacc) / (int)draw->view.scale;
-				y = (e.motion.yrel + d->yrelacc) / (int)draw->view.scale;
-				d->xrelacc = e.motion.xrel + d->xrelacc - x * (int)draw->view.scale;
-				d->yrelacc = e.motion.yrel + d->yrelacc - y * (int)draw->view.scale;
+				x = (e.motion.xrel + d->xrelacc)
+				      / (int)draw->view.scale;
+				y = (e.motion.yrel + d->yrelacc) 
+				      / (int)draw->view.scale;
+				d->xrelacc = e.motion.xrel + d->xrelacc 
+				              - x * (int)draw->view.scale;
+				d->yrelacc = e.motion.yrel + d->yrelacc 
+				              - y * (int)draw->view.scale;
 				draw->view.x = (int)draw->view.x - x;
 				draw->view.y = (int)draw->view.y - y;
 				d->dirty = 1;
@@ -128,7 +136,8 @@ enum draw_update_result draw_update(struct draw *draw)
 
 
 
-static void dbg_draw(struct draw *d, struct draw_data *data, struct quad *quad, unsigned depth)
+static void dbg_draw(struct draw *d, struct draw_data *data,
+                     struct quad *quad, unsigned depth)
 {
 	SDL_Surface *screen = data->screen;
 
@@ -155,7 +164,9 @@ static void dbg_draw(struct draw *d, struct draw_data *data, struct quad *quad, 
 	r.h *= d->view.scale;
 	if (SDL_IntersectRect(&r, &scbounds, &b)) {
 		struct sdlcol col = colors[depth % color_sz];
-		SDL_FillRect(screen, &b, SDL_MapRGB(screen->format, col.r/2, col.g/2, col.b/2));
+		Uint32 clr = SDL_MapRGB(screen->format,
+		                        col.r/2, col.g/2, col.b/2);
+		SDL_FillRect(screen, &b, clr);
 	} else {
 		return;
 	}
@@ -174,7 +185,9 @@ static void dbg_draw(struct draw *d, struct draw_data *data, struct quad *quad, 
 
 			if (SDL_IntersectRect(&r, &scbounds, &b)) {
 				struct sdlcol c = colors[cur->num % color_sz];
-				SDL_FillRect(screen, &b, SDL_MapRGB(screen->format, c.r, c.g, c.b));
+				Uint32 clr = SDL_MapRGB(screen->format,
+			                                c.r, c.g, c.b);
+				SDL_FillRect(screen, &b, clr);
 			}
 			cur = cur->next;
 		}
@@ -224,7 +237,8 @@ void draw(struct draw *d, struct quad *quad,
 
 		for(coordinate y = 0; y < d->view.h; y++) {
 			for(coordinate x = 0; x < d->view.w; x++) {
-				value v = get(quad, d->view.x + x, d->view.y + y);
+				value v = get(quad, d->view.x + x,
+				                    d->view.y + y);
 
 				if (!v)
 					continue;

@@ -131,7 +131,9 @@ int load_rle(struct quad *qua, struct bounds *bounds,
 				}
 				return 1;
 			default:
-				fprintf(stderr, "stdin:%u:%u: Unexpected character '%c'. One of 'b', 'o', '$' is expected.\n",
+				fprintf(stderr,
+				        "%u:%u: Unexpected character '%c'. "
+				        "One of 'b', 'o', '$' is expected.\n",
 				        row, col, c);
 				return 0;
 			}
@@ -211,7 +213,9 @@ int load_cells(struct quad *qua, struct bounds *bounds,
 			}
 			/* FALLTHROUGH */
 		default:
-			fprintf(stderr, "stdin:%u:%u: Invalid character '%c'\n", row, col, c);
+			fprintf(stderr,
+			        "stdin:%u:%u: Invalid character '%c'\n",
+			        row, col, c);
 			return 0;
 		}
 
