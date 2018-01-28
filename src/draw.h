@@ -4,6 +4,7 @@ struct draw {
 		coordinate x, y, w, h;
 		unsigned scale;
 	} view;
+	int dbg;
 	void *opaque;
 };
 

@@ -222,18 +222,14 @@ void draw(struct draw *d, struct quad *quad,
 	SDL_Rect screen_bounds = { 0, 0, screen->w, screen->h };
 	SDL_Rect r, b;
 
-	if (data->dirty) {
+	if (data->dirty || d->dbg) {
 		(void)(changes);
 
 		SDL_FillRect(screen, &screen_bounds, off);
 
-		/*
-		if (color_dbg) {
-			dbg_draw(g, screen,
-		         	 vx, vy, vw, vh,
-		         	 scale, 0);
+		if (d->dbg) {
+			dbg_draw(d, data, quad, 0);
 		}
-		*/
 
 		for(coordinate y = 0; y < d->view.h; y++) {
 			for(coordinate x = 0; x < d->view.w; x++) {

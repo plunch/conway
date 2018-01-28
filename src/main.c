@@ -38,12 +38,15 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+#ifndef DBG_SILENT
 	struct draw display;
 	display.view.x = 0;
 	display.view.y = 0;
 	display.view.w = 0;
 	display.view.h = 0;
 	display.view.scale = 4;
+	display.dbg = 1;
+#endif /* DBG_SILENT */
 
 	int pattx = -1; int patty = -1;
 	int speed = 100;
@@ -58,7 +61,9 @@ int main(int argc, char *argv[])
 			help();
 			return 0;
 		case 'c':
-			//dbg = 1;
+#ifndef DBG_SILENT
+			display.dbg = 1;
+#endif /* DBG_SILENT */
 			break;
 		case 'f':
 			if (speed != 100) {
@@ -86,6 +91,7 @@ int main(int argc, char *argv[])
 			patty = atoi(tok);
 			break;
 		case 'b':
+#ifndef DBG_SILENT
 			tok = strtok(optarg, ":");
 			if (tok == NULL) break;
 			display.view.x = atoi(tok);
@@ -105,6 +111,7 @@ int main(int argc, char *argv[])
 			tok = strtok(NULL, ":");
 			if (tok == NULL) break;
 			display.view.scale = atoi(tok);
+#endif /* DBG_SILENT */
 			break;
 		case '?':
 			switch(optopt) {
@@ -138,10 +145,17 @@ int main(int argc, char *argv[])
 		0, 0, 0, 0,
 		0, 0, 0, 0,
 	};
+#ifndef DBG_SILENT
 	if (pattx == -1)
 		pattx = display.view.x + display.view.w/2;
 	if (patty == -1)
 		patty = display.view.y + display.view.h/2;
+#else
+	if (pattx == -1)
+		pattx = 0;
+	if (patty == -1)
+		patty = 0;
+#endif
 
 	FILE* stream;
 	switch(argc - optind) {
@@ -174,6 +188,7 @@ int main(int argc, char *argv[])
 	if (stream != stdin)
 		fclose(stream);
 
+#ifndef DBG_SILENT
 	if (display.view.w == 0 || display.view.h == 0) {
 		if (patt_bounds.w_set && patt_bounds.e_set
 		 && patt_bounds.n_set && patt_bounds.s_set) {
@@ -188,7 +203,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-#ifndef DBG_SILENT
 	if (!draw_create(&display)) {
 		fprintf(stderr, "%s", draw_geterror());
 		return 1;
