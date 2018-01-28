@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 	display.view.w = 0;
 	display.view.h = 0;
 	display.view.scale = 4;
-	display.dbg = 1;
+	display.dbg = 0;
 #endif /* DBG_SILENT */
 
 	int pattx = -1; int patty = -1;
