@@ -1,6 +1,8 @@
 
-#define COORD_MAX 255
-typedef unsigned char coordinate;
+#include <stdint.h>
+
+#define COORD_MAX UINT16_MAX
+typedef uint16_t coordinate;
 
 #define VALUE_BIT (8*sizeof(unsigned char))
 typedef unsigned char value;

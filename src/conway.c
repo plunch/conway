@@ -242,6 +242,13 @@ static struct bucket* new_bucket(struct quad *quad, coordinate x, coordinate y,
 
 // {{{1 get/set
 
+static value index_bucket(struct bucket *bucket,
+                          coordinate ix, coordinate iy)
+{
+	coordinate i = ix + iy * BUCKETSZ;
+	return (bucket->bucket[i / VALUE_BIT] >> (i % VALUE_BIT)) & 1;
+}
+
 value get(struct quad *quad, coordinate x, coordinate y)
 {
 	assert(quad);
@@ -253,8 +260,7 @@ value get(struct quad *quad, coordinate x, coordinate y)
 
 	coordinate ix = x - current->x * BUCKETSZ;
 	coordinate iy = y - current->y * BUCKETSZ;
-	coordinate i = ix + iy * BUCKETSZ;
-	return current->bucket[i / VALUE_BIT] & (1 << (i % VALUE_BIT));
+	return index_bucket(current, ix, iy);
 }
 
 void set(struct quad *quad,
@@ -327,52 +333,441 @@ void update(struct quad *now, struct state_change_buffer *changes)
 	}
 }
 
-static void bucket_step(struct quad *now, struct bucket *bucket, struct state_change_buffer *changes)
+union bucket_neighbours
+{
+	struct {
+		struct bucket *w,  *e,  *n,  *s,
+		              *nw, *ne, *sw, *se;
+	};
+	struct bucket *items[8];
+};
+
+union neighbor_coordinates { 
+	struct { coordinate x, y; } items[8];
+	struct {
+		struct { coordinate x, y; } w;
+		struct { coordinate x, y; } e;
+		struct { coordinate x, y; } n;
+		struct { coordinate x, y; } s;
+		struct { coordinate x, y; } nw;
+		struct { coordinate x, y; } ne;
+		struct { coordinate x, y; } sw;
+		struct { coordinate x, y; } se;
+	};
+};
+
+static void cell(struct state_change_buffer* changes,
+                 unsigned n,
+                 coordinate x, coordinate y, value v)
+{
+	if (v) {
+		switch(n) {
+		 case 0:
+		 case 1: // Starvation
+			append(changes, x, y, 0);
+			return;
+		 case 2:
+		 case 3: // No change
+		 	return;
+		default: // Overpopulation
+			append(changes, x, y, 0);
+			return;
+		}
+	} else if (n == 3) {
+		append(changes, x, y, 1);
+	} 
+}
+
+enum bucket_edge {
+	EDGE_NORTH = (1<<0),
+	EDGE_SOUTH = (1<<1),
+	EDGE_EAST  = (1<<2),
+	EDGE_WEST  = (1<<3),
+};
+
+static void corner_step(struct state_change_buffer *changes,
+                        union bucket_neighbours *neighbour,
+                        struct bucket *bucket, coordinate xp, coordinate yp,
+                        enum bucket_edge edge)
+{
+	union bucket_neighbours n = *neighbour;
+
+	coordinate x, y;
+
+	coordinate max = BUCKETSZ-1;
+
+	switch(edge) {
+	case EDGE_NORTH|EDGE_WEST: // NE
+		x = 0; y = 0;
+		break;
+	case EDGE_NORTH|EDGE_EAST: // NW
+		x = max; y = 0;
+		break;
+	case EDGE_SOUTH|EDGE_WEST: // SW
+		x = 0; y = max;
+		break;
+	case EDGE_SOUTH|EDGE_EAST: // SE
+		x = max; y = max;
+		break;
+	}
+
+	struct { int x, y; } delta[8] = {
+		{ -1,  0 }, // w
+		{ +1,  0 }, // e
+		{  0, -1 }, // n
+		{  0, +1 }, // s
+		{ -1, -1 }, // nw
+		{ +1, -1 }, // ne
+		{ -1, +1 }, // sw
+		{ +1, +1 }, // se
+	};
+
+	union neighbor_coordinates coord;
+
+	for(unsigned i = 0; i < 8; ++i) {
+		coord.items[i].x = x + delta[i].x;
+		coord.items[i].y = y + delta[i].y;
+	}
+
+	for(unsigned i = 0; i < 8; ++i)
+		n.items[i] = bucket;
+
+
+	switch(edge) {
+	case EDGE_NORTH|EDGE_WEST: // NE
+		n.n  = neighbour->n;
+		coord.n.x = 0;
+		coord.n.y = max;
+
+		n.ne = neighbour->n;
+		coord.ne.x = 1;
+		coord.ne.y = max;
+
+		n.nw = neighbour->nw;
+		coord.nw.x = max;
+		coord.nw.y = max;
+
+		n.w  = neighbour->w;
+		coord.w.x = max;
+		coord.w.y = 0;
+
+		n.sw = neighbour->w;
+		coord.sw.x = max;
+		coord.sw.y = 1;
+
+		break;
+	case EDGE_NORTH|EDGE_EAST: // NW
+		n.n  = neighbour->n;
+		coord.n.x = max;
+		coord.n.y = max;
+
+		n.ne = neighbour->ne;
+		coord.ne.x = 0;
+		coord.ne.y = max;
+
+		n.nw = neighbour->n;
+		coord.nw.x = max-1;
+		coord.nw.y = max;
+
+		n.e  = neighbour->e;
+		coord.e.x = 0;
+		coord.e.y = 0;
+		n.se = neighbour->e;
+		coord.se.x = 0;
+		coord.se.y = 1;
+
+		break;
+	case EDGE_SOUTH|EDGE_WEST: // SW
+		n.s  = neighbour->s;
+		coord.s.x = 0;
+		coord.s.y = 0;
+
+		n.se = neighbour->s;
+		coord.se.x = 1;
+		coord.se.y = 0;
+
+		n.sw = neighbour->sw;
+		coord.sw.x = max;
+		coord.sw.y = 0;
+
+		n.w  = neighbour->w;
+		coord.w.x = max;
+		coord.w.y = max;
+
+		n.nw = neighbour->w;
+		coord.nw.x = max;
+		coord.nw.y = max-1;
+
+		break;
+	case EDGE_SOUTH|EDGE_EAST: // SE
+		n.s  = neighbour->s;
+		coord.s.x = max;
+		coord.s.y = 0;
+
+		n.se = neighbour->se;
+		coord.se.x = 0;
+		coord.se.y = 0;
+
+		n.sw = neighbour->s;
+		coord.sw.x = max-1;
+		coord.sw.y = 0;
+
+		n.e  = neighbour->e;
+		coord.e.x = 0;
+		coord.e.y = max;
+
+		n.ne = neighbour->e;
+		coord.ne.x = 0;
+		coord.ne.y = max-1;
+
+		break;
+	}
+
+
+	unsigned c = 0;
+
+	unsigned coordsz = sizeof(coord.items)/sizeof(coord.items[0]);
+
+	for(unsigned j = 0; j < coordsz; ++j) {
+		if (!n.items[j]) continue;
+
+		c += index_bucket(n.items[j],
+			          coord.items[j].x,
+			          coord.items[j].y);
+	}
+
+	value v = bucket && index_bucket(bucket, x, y);
+
+	cell(changes, c, xp+x, yp+y, v);
+}
+
+static void edge_step(struct state_change_buffer *changes,
+                      union bucket_neighbours *neighbour,
+                      struct bucket *bucket, coordinate xp, coordinate yp,
+                      enum bucket_edge edge)
+{
+	union bucket_neighbours n = *neighbour;
+
+	for(unsigned i = 0; i < 8; ++i)
+		n.items[i] = bucket;
+
+	switch(edge) {
+	case EDGE_NORTH:
+		n.n  = neighbour->n;
+		n.ne = neighbour->n;
+		n.nw = neighbour->n;
+		break;
+	case EDGE_SOUTH:
+		n.s  = neighbour->s;
+		n.se = neighbour->s;
+		n.sw = neighbour->s;
+		break;
+	case EDGE_EAST:
+		n.e  = neighbour->e;
+		n.ne = neighbour->e;
+		n.se = neighbour->e;
+		break;
+	case EDGE_WEST:
+		n.w  = neighbour->w;
+		n.nw = neighbour->w;
+		n.sw = neighbour->w;
+		break;
+	}
+
+	for (coordinate i = 1; i < BUCKETSZ-1; ++i) {
+
+		coordinate x, y;
+
+		switch(edge) {
+		case EDGE_NORTH:
+			x = i; y = 0;
+			break;
+		case EDGE_SOUTH:
+			x = i; y = BUCKETSZ-1;
+			break;
+		case EDGE_WEST:
+			x = 0; y = i;
+			break;
+		case EDGE_EAST:
+			x = BUCKETSZ-1; y = i;
+			break;
+		}
+
+
+		union neighbor_coordinates coord = {
+			{
+				{ x-1, y+0 }, // w
+				{ x+1, y+0 }, // e
+				{ x+0, y-1 }, // n
+				{ x+0, y+1 }, // s
+				{ x-1, y-1 }, // nw
+				{ x+1, y-1 }, // ne
+				{ x-1, y+1 }, // sw
+				{ x+1, y+1 }, // se
+			},
+		};
+
+		switch(edge) {
+		case EDGE_NORTH:
+			coord.n.y  = BUCKETSZ-1;
+			coord.nw.y = BUCKETSZ-1;
+			coord.ne.y = BUCKETSZ-1;
+			break;
+		case EDGE_SOUTH:
+			coord.s.y  = 0;
+			coord.sw.y = 0;
+			coord.se.y = 0;
+			break;
+			
+		case EDGE_WEST:
+			coord.w.x  = BUCKETSZ-1;
+			coord.nw.x = BUCKETSZ-1;
+			coord.sw.x = BUCKETSZ-1;
+			break;
+
+		case EDGE_EAST:
+			coord.e.x  = 0;
+			coord.ne.x = 0;
+			coord.se.x = 0;
+			break;
+		}
+
+		unsigned c = 0;
+
+		unsigned coordsz = sizeof(coord.items)/sizeof(coord.items[0]);
+
+		for(unsigned j = 0; j < coordsz; ++j) {
+			if (!n.items[j]) continue;
+
+			c += index_bucket(n.items[j],
+			                  coord.items[j].x,
+			                  coord.items[j].y);
+		}
+
+		value v = bucket && index_bucket(bucket, x, y);
+		cell(changes, c, xp+x, yp+y, v);
+	}
+}
+
+static void bucket_step(struct quad *now,
+                        struct bucket *bucket,
+                        union bucket_neighbours *neighbours,
+                        struct state_change_buffer *changes)
 {
 	coordinate xp = bucket->x * BUCKETSZ;
 	coordinate yp = bucket->y * BUCKETSZ;
 
-	for(coordinate iy = 0; iy < BUCKETSZ+2; ++iy) {
-		for(coordinate ix = 0; ix < BUCKETSZ+2; ++ix) {
-			coordinate x = ix + xp - 1;
-			coordinate y = iy + yp - 1;
-			coordinate n = 0;
+	edge_step(changes, neighbours, bucket, xp, yp, EDGE_NORTH);
+	edge_step(changes, neighbours, bucket, xp, yp, EDGE_SOUTH);
+	edge_step(changes, neighbours, bucket, xp, yp, EDGE_WEST);
+	edge_step(changes, neighbours, bucket, xp, yp, EDGE_EAST);
 
-			value v = get(now, x, y);
+	corner_step(changes, neighbours, bucket, xp, yp, EDGE_NORTH|EDGE_WEST);
+	corner_step(changes, neighbours, bucket, xp, yp, EDGE_NORTH|EDGE_EAST);
+	corner_step(changes, neighbours, bucket, xp, yp, EDGE_SOUTH|EDGE_WEST);
+	corner_step(changes, neighbours, bucket, xp, yp, EDGE_SOUTH|EDGE_EAST);
 
-			if (get(now, x-1, y))     // west
-				n++;
-			if (get(now, x-1, y-1))   // north-west
-				n++;
-			if (get(now, x, y-1))     // north
-				n++;
-			if (get(now, x+1, y-1))   // north-east
-				n++;
-			if (get(now, x+1, y))     // east
-				n++;
-			if (get(now, x+1, y+1))   // south-east
-				n++;
-			if (get(now, x, y+1))     // south
-				n++;
-			if (get(now, x-1, y+1))   // south-west
-				n++;
+	if (!neighbours->n) {
+		yp -= BUCKETSZ;
 
-			if (v) {
-				switch(n) {
-				 case 0:
-				 case 1: // Starvation
-					append(changes, x, y, 0);
-					continue;
-				 case 2:
-				 case 3: // No change
-					continue;
-				default: // Overpopulation
-					append(changes, x, y, 0);
-					continue;
-				}
-			} else if (n == 3) {
-				append(changes, x, y, 1);
-			} 
+                union bucket_neighbours mn;
+		mn.s  = bucket;
+		mn.w  = neighbours->nw;
+		mn.e  = neighbours->ne;
+		mn.sw = neighbours->w;
+		mn.se = neighbours->e;
+
+		edge_step(changes, &mn, NULL, xp, yp, EDGE_SOUTH);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_SOUTH|EDGE_WEST);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_SOUTH|EDGE_EAST);
+
+		yp += BUCKETSZ;
+	}
+
+	if (!neighbours->s) {
+		yp += BUCKETSZ;
+
+                union bucket_neighbours mn;
+		mn.n  = bucket;
+		mn.w  = neighbours->sw;
+		mn.e  = neighbours->se;
+		mn.nw = neighbours->w;
+		mn.ne = neighbours->e;
+
+		edge_step(changes, &mn, NULL, xp, yp, EDGE_NORTH);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_NORTH|EDGE_WEST);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_NORTH|EDGE_EAST);
+
+		yp -= BUCKETSZ;
+	}
+
+	if (!neighbours->w) {
+		xp -= BUCKETSZ;
+
+                union bucket_neighbours mn;
+		mn.e  = bucket;
+		mn.n  = neighbours->nw;
+		mn.s  = neighbours->sw;
+		mn.ne = neighbours->n;
+		mn.se = neighbours->s;
+
+		edge_step(changes, &mn, NULL, xp, yp, EDGE_EAST);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_NORTH|EDGE_EAST);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_SOUTH|EDGE_EAST);
+
+		xp += BUCKETSZ;
+	}
+
+	if (!neighbours->e) {
+		xp += BUCKETSZ;
+
+                union bucket_neighbours mn;
+		mn.w  = bucket;
+		mn.n  = neighbours->ne;
+		mn.s  = neighbours->se;
+		mn.nw = neighbours->n;
+		mn.sw = neighbours->s;
+
+		edge_step(changes, &mn, NULL, xp, yp, EDGE_WEST);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_NORTH|EDGE_WEST);
+		corner_step(changes, &mn, NULL,
+		            xp, yp, EDGE_SOUTH|EDGE_WEST);
+
+		xp -= BUCKETSZ;
+	}
+
+
+	struct { coordinate x, y; } delta[8] = {
+		{ -1,  0 }, // w
+		{ +1,  0 }, // e
+		{  0, -1 }, // n
+		{  0, +1 }, // s
+		{ -1, -1 }, // nw
+		{ +1, -1 }, // ne
+		{ -1, +1 }, // sw
+		{ +1, +1 }, // se
+	};
+	unsigned deltasz = sizeof(delta)/sizeof(delta[0]);
+
+
+	for(coordinate y = 1; y < BUCKETSZ-1; ++y) {
+		for(coordinate x = 1; x < BUCKETSZ-1; ++x) {
+			unsigned n = 0;
+
+			for(unsigned i = 0; i < deltasz; ++i) {
+				n += index_bucket(bucket,
+			          	  	  x + delta[i].x,
+			          	  	  y + delta[i].y);
+			}
+
+			cell(changes, n, xp+x, yp+y, index_bucket(bucket, x, y));
 		}
 	}
 }
@@ -383,9 +778,34 @@ void step(struct quad *now, struct state_change_buffer *changes)
 	assert(changes);
 
 	if (now->leaf) {
+
+		union bucket_neighbours neighbours;
+
 		struct bucket *cur = now->items.head;
 		while(cur) {
-			bucket_step(now, cur, changes);
+
+			struct { coordinate x, y; } delta[8] = {
+				{ -1,  0 }, // w
+				{ +1,  0 }, // e
+				{  0, -1 }, // n
+				{  0, +1 }, // s
+				{ -1, -1 }, // nw
+				{ +1, -1 }, // ne
+				{ -1, +1 }, // sw
+				{ +1, +1 }, // se
+			};
+			unsigned deltasz = sizeof(delta)/sizeof(delta[0]);
+
+
+			for(unsigned i = 0; i < deltasz; ++i) {
+				coordinate x, y;
+				x = (cur->x + delta[i].x) * BUCKETSZ;
+				y = (cur->y + delta[i].y) * BUCKETSZ;
+				struct bucket *b = find_bucket(now, x, y, NULL);
+				neighbours.items[i] = b;
+			}
+
+			bucket_step(now, cur, &neighbours, changes);
 			cur = cur->next;
 		}
 	} else {
