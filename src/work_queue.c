@@ -99,10 +99,14 @@ static void* worker(void *_a)
 
 static void internal_stop(struct wq *q)
 {
-	q->waiting++;
-	pthread_cond_signal(&q->locks.work_available);
-	pthread_cond_wait(&q->locks.queue_empty, &q->locks.mutex);
-	q->waiting--;
+	int has_work = !!q->entries;
+	int has_workers = q->workers.active;
+	if (q->workers.destroy || has_work || has_workers) {
+		q->waiting++;
+		pthread_cond_signal(&q->locks.work_available);
+		pthread_cond_wait(&q->locks.queue_empty, &q->locks.mutex);
+		q->waiting--;
+	}
 
 	int last_waiter = q->waiting == 0;
 	pthread_mutex_unlock(&q->locks.mutex);
