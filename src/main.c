@@ -32,6 +32,18 @@ static void help()
 	        "With no FILE, or when FILE is -, read standard input.\n");
 }
 
+
+#ifndef DBG_SILENT
+static void do_update(void *p, int run)
+{
+	struct conway *cw = p;
+
+	if (run)
+		update(cw->root, &cw->changes);
+}
+#endif /* DBG_SILENT */
+
+
 int main(int argc, char *argv[])
 {
 	if (BUCKETSZ % VALUE_BIT) {
@@ -223,6 +235,14 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+#ifndef DBG_SILENT
+	enum draw_update_result du = draw_update(&display);
+	if (du != DR_OK)
+		return 0;
+
+	draw(&display, &quad, &conway.changes);
+#endif /* DBG_SILENT */
+
 
 	struct workq queue;
 	if (!workq_create(&queue)) {
@@ -236,21 +256,26 @@ int main(int argc, char *argv[])
 
 	struct timespec time = { 0, speed * 1000000 };
 	do {
+		conway.changes.length = 0;
+		step(&quad, &conway.changes, &queue);
+		workq_wait(&queue);
+
 #ifdef DBG_SILENT
+		update(&quad, &conway.changes);
 		if (conway->generation >= 1000)
 			break;
 #else
+		workq_add(&queue, &conway, do_update);
+
 		enum draw_update_result du = draw_update(&display);
 		if (du != DR_OK)
 			break;
 
 		draw(&display, &quad, &conway.changes);
+
+		workq_wait(&queue);
 #endif /* DBG_SILENT */
 
-		conway.changes.length = 0;
-		step(&quad, &conway.changes, &queue);
-		workq_wait(&queue);
-		update(&quad, &conway.changes);
 	} while(speed == 0 ? 1 : !nanosleep(&time, NULL));
 
 	workq_destroy(&queue);
