@@ -3,6 +3,8 @@
 #include "conway.h"
 #include "load.h"
 
+#include "work_queue.h"
+
 #ifndef DBG_SILENT
 #include "draw.h"
 #endif
@@ -22,8 +24,9 @@ static void help()
 	        "	-f	run as fast as possible.\n"
 	        "	-c	debug underlying data structures with colors.\n"
 	        "	-s	number of milliseconds per generation.\n"
-	       "	-b	view bounds and scale (x:y:w:h:scale).\n"
+	        "	-b	view bounds and scale (x:y:w:h:scale).\n"
 	        "	-t	where to place the pattern's top left (x:y).\n"
+	        "	-w	number of worker threads.\n"
 	        "	-r	read RLE input.\n"
 	        "\n"
 	        "With no FILE, or when FILE is -, read standard input.\n");
@@ -50,12 +53,13 @@ int main(int argc, char *argv[])
 
 	int pattx = -1; int patty = -1;
 	int speed = 100;
+	int threads = 4;
 	char* tok;
 	int rle = 0;
 
 
 	int c;
-	while((c = getopt(argc, argv, "hcrfs:b:t:")) != -1) {
+	while((c = getopt(argc, argv, "hcrfs:b:t:w:")) != -1) {
 		switch(c) {
 		case 'h':
 			help();
@@ -89,6 +93,9 @@ int main(int argc, char *argv[])
 			tok = strtok(NULL, ":");
 			if (tok == NULL) break;
 			patty = atoi(tok);
+			break;
+		case 'w':
+			threads = atoi(optarg);
 			break;
 		case 'b':
 #ifndef DBG_SILENT
@@ -210,36 +217,46 @@ int main(int argc, char *argv[])
 #endif /* DBG_SILENT */
 
 
-	unsigned generation = 0;
-	struct state_change_buffer change_buffer = { 0, 0, NULL };
+	struct conway conway;
+	if (!conway_create(&conway, &quad)) {
+		fprintf(stderr, "Arena cannot be created\n");
+		return 1;
+	}
+
+
+	struct workq queue;
+	if (!workq_create(&queue)) {
+		fprintf(stderr, "Queue cannot be created\n");
+		return 1;
+	}
+	if (!workq_start(&queue, threads)) {
+		fprintf(stderr, "Queue cannot be started\n");
+		return 1;
+	}
+
 	struct timespec time = { 0, speed * 1000000 };
 	do {
 #ifdef DBG_SILENT
-		if (generation >= 1000)
+		if (conway->generation >= 1000)
 			break;
 #else
 		enum draw_update_result du = draw_update(&display);
 		if (du != DR_OK)
 			break;
 
-		draw(&display, &quad, &change_buffer);
+		draw(&display, &quad, &conway.changes);
 #endif /* DBG_SILENT */
 
-		change_buffer.length = 0;
-		step(&quad, &change_buffer);
-		update(&quad, &change_buffer);
-
-		generation++;
+		conway.changes.length = 0;
+		step(&quad, &conway.changes, &queue);
+		workq_wait(&queue);
+		update(&quad, &conway.changes);
 	} while(speed == 0 ? 1 : !nanosleep(&time, NULL));
 
+	workq_destroy(&queue);
 
 	release(&quad);
-	if (change_buffer.capacity > 0) {
-		free(change_buffer.items);
-		change_buffer.items = NULL;
-		change_buffer.length = 0;
-		change_buffer.capacity = 0;
-	}
+	conway_destroy(&conway);
 
 #ifndef DBG_SILENT
 	draw_destroy(&display);

@@ -1,14 +1,64 @@
 #include "conway.h"
 
+#include "work_queue.h"
+
 #include <stdlib.h> /* malloc, realloc, free */
 #include <assert.h> /* assert */
 #include <string.h> /* memset */
+#include <pthread.h>
 
+int conway_create(struct conway *cw, struct quad *root)
+{
+	if (!cw) return 0;
+	if (!root) return 0;
+
+	pthread_mutex_t *mut = malloc(sizeof(pthread_mutex_t));
+	if (!mut)
+		return 0;
+
+	int err = pthread_mutex_init(mut, NULL);
+	if (err) {
+		free(mut);
+		return 0;
+	}
+
+	cw->root = root;
+	cw->changes.length = 0;
+	cw->changes.capacity = 0;
+	cw->changes.items = 0;
+	cw->changes.opaque = mut;
+	cw->opaque = NULL;
+
+	return 1;
+}
+
+void conway_destroy(struct conway *cw)
+{
+	if (!cw) return;
+
+	pthread_mutex_t *mut = cw->changes.opaque;
+	if (mut) {
+		pthread_mutex_destroy(mut);
+		free(mut);
+	}
+
+	if (cw->changes.capacity > 0) {
+		free(cw->changes.items);
+		cw->changes.items = NULL;
+		cw->changes.length = 0;
+		cw->changes.capacity = 0;
+	}
+}
 
 static int append(struct state_change_buffer *buf,
                   coordinate x, coordinate y, value v)
 {
 	assert(buf);
+	assert(buf->opaque);
+
+	pthread_mutex_t *mut = buf->opaque;
+
+	pthread_mutex_lock(mut);
 
 	if (buf->length == buf->capacity) {
 		unsigned new_cap = buf->capacity * 2;
@@ -16,8 +66,10 @@ static int append(struct state_change_buffer *buf,
 			new_cap = 8;
 		void *tmp = realloc(buf->items,
 		                    sizeof(struct state_change) * new_cap);
-		if (!tmp)
+		if (!tmp) {
+			pthread_mutex_unlock(mut);
 			return 0;
+		}
 		buf->items = tmp;
 		buf->capacity = new_cap;
 	}
@@ -27,6 +79,7 @@ static int append(struct state_change_buffer *buf,
 	buf->items[i].y = y;
 	buf->items[i].v = v;
 
+	pthread_mutex_unlock(mut);
 	return 1;
 }
 
@@ -772,7 +825,26 @@ static void bucket_step(struct quad *now,
 	}
 }
 
-void step(struct quad *now, struct state_change_buffer *changes)
+struct step_arguments {
+	struct quad *now;
+	struct state_change_buffer *changes;
+};
+
+static void run_step(struct quad *now, struct state_change_buffer *changes);
+
+static void run_stepa(void *opaque, int run)
+{
+	struct step_arguments *args = opaque;
+	struct quad *now = args->now;
+	struct state_change_buffer *changes = args->changes;
+
+	free(args);
+
+	if (run)
+		run_step(now, changes);
+}
+
+static void run_step(struct quad *now, struct state_change_buffer *changes)
 {
 	assert(now);
 	assert(changes);
@@ -810,9 +882,30 @@ void step(struct quad *now, struct state_change_buffer *changes)
 		}
 	} else {
 		for(unsigned i = 0; i < 4; ++i)
-			step(now->children[i], changes);
+			run_step(now->children[i], changes);
 	}
 }
+
+void step(struct quad *now,
+          struct state_change_buffer *changes,
+          void *q)
+{
+	struct workq *queue = q;
+
+	struct step_arguments *a = malloc(sizeof(struct step_arguments));
+	if (!a)
+		return;
+
+	if (now->leaf) {
+		a->now = now;
+		a->changes = changes;
+		workq_add(queue, a, run_stepa);
+	} else {
+		for(unsigned i = 0; i < 4; ++i)
+			step(now->children[i], changes, queue);
+	}
+}
+
 
 /* 1}}} */
 

@@ -19,7 +19,6 @@ struct bucket {
 };
 
 
-
 struct quad {
 	coordinate west, east, north, south;
 	unsigned leaf, count;
@@ -42,16 +41,26 @@ struct state_change {
 
 struct state_change_buffer {
 	unsigned length, capacity;
+	void *opaque;
 	struct state_change *items;
 };
 
+struct conway {
+	struct quad *root;
+	struct state_change_buffer changes;
+	void *opaque;
+};
 
 void release(struct quad *quad);
+int conway_create(struct conway *cw, struct quad *root);
+void conway_destroy(struct conway *cw);
 
 value get(struct quad *quad, coordinate x, coordinate y);
 void set(struct quad *quad, coordinate x, coordinate y, value v);
 
 void update(struct quad *quad, struct state_change_buffer *changes);
 
-void step(struct quad *quad, struct state_change_buffer *changes);
+void step(struct quad *quad,
+          struct state_change_buffer *changes,
+          void *queue);
 

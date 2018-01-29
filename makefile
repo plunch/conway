@@ -1,11 +1,12 @@
 PKGCONFIG_LIBS=sdl2
 CFLAGS+=-g -MMD -I./src/ $(shell pkg-config --cflags $(PKGCONFIG_LIBS))
-LDLIBS=$(shell pkg-config --libs $(PKGCONFIG_LIBS))
+LDLIBS=-lpthread $(shell pkg-config --libs $(PKGCONFIG_LIBS))
 LDFLAGS=
 
 SOURCES=src/conway.c \
         src/draw.c \
         src/load.c \
+        src/work_queue.c \
         src/main.c
 OBJS=$(SOURCES:.c=.o)
 DEPS=$(OBJS:.o=.d)
