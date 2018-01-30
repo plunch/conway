@@ -114,6 +114,8 @@ static void internal_stop(struct wq *q)
 	if (q->workers.destroy && last_waiter) {
 		for(unsigned i = 0; i < q->threads.length; ++i)
 			pthread_join(q->threads.items[i], NULL);
+		if (q->threads.items)
+			free(q->threads.items);
 
 		pthread_cond_destroy(&q->locks.queue_empty);
 		pthread_mutex_destroy(&q->locks.mutex);
