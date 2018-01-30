@@ -894,11 +894,11 @@ void step(struct quad *now,
 {
 	struct workq *queue = q;
 
-	struct step_arguments *a = malloc(sizeof(struct step_arguments));
-	if (!a)
-		return;
-
 	if (now->leaf) {
+		struct step_arguments *a = malloc(sizeof(struct step_arguments));
+		if (!a)
+			return;
+
 		a->now = now;
 		a->changes = changes;
 		workq_add(queue, a, run_stepa);
