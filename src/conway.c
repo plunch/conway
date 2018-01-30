@@ -28,6 +28,7 @@ int conway_create(struct conway *cw, struct quad *root)
 	cw->changes.items = 0;
 	cw->changes.opaque = mut;
 	cw->opaque = NULL;
+	cw->generation = 0;
 
 	return 1;
 }
@@ -378,11 +379,12 @@ void set(struct quad *quad,
 
 /* {{{1 update */
 
-void update(struct quad *now, struct state_change_buffer *changes)
+void update(struct conway *cw)
 {
-	for(unsigned i = 0; i < changes->length; ++i) {
-		struct state_change c = changes->items[i];
-		set(now, c.x, c.y, c.v);
+	cw->generation++;
+	for(unsigned i = 0; i < cw->changes.length; ++i) {
+		struct state_change c = cw->changes.items[i];
+		set(cw->root, c.x, c.y, c.v);
 	}
 }
 

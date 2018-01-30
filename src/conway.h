@@ -48,6 +48,7 @@ struct state_change_buffer {
 struct conway {
 	struct quad *root;
 	struct state_change_buffer changes;
+	unsigned generation;
 	void *opaque;
 };
 
@@ -58,7 +59,7 @@ void conway_destroy(struct conway *cw);
 value get(struct quad *quad, coordinate x, coordinate y);
 void set(struct quad *quad, coordinate x, coordinate y, value v);
 
-void update(struct quad *quad, struct state_change_buffer *changes);
+void update(struct conway *cw);
 
 void step(struct quad *quad,
           struct state_change_buffer *changes,

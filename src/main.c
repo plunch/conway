@@ -39,7 +39,7 @@ static void do_update(void *p, int run)
 	struct conway *cw = p;
 
 	if (run)
-		update(cw->root, &cw->changes);
+		update(cw);
 }
 #endif /* DBG_SILENT */
 
@@ -261,8 +261,8 @@ int main(int argc, char *argv[])
 		workq_wait(&queue);
 
 #ifdef DBG_SILENT
-		update(&quad, &conway.changes);
-		if (conway->generation >= 1000)
+		update(&conway);
+		if (conway.generation >= 1000)
 			break;
 #else
 		workq_add(&queue, &conway, do_update);
