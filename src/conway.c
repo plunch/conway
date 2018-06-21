@@ -7,8 +7,13 @@
 #include <string.h> /* memset */
 #include <pthread.h>
 
+#define BUILD_BUG_ON(cond) ((void)sizeof(char[1 - 2*!!(cond)]))
+
+
 int conway_create(struct conway *cw, struct quad *root)
 {
+	BUILD_BUG_ON(BUCKETSZ % VALUE_BIT); // Size of bucket(BUCKETSZ) must be evenly divisible by the numberof bytes in the value-word.
+
 	if (!cw) return 0;
 	if (!root) return 0;
 
