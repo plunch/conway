@@ -1,3 +1,30 @@
 Conways game of life in C.
 
 Unneccesarily complex :)
+
+
+Overview of the files in src/:
+
+conway.[ch]
+  Contains a quadtree implementation, and methods to perform
+  the simulation. Uses the worq module from work_queue to
+  run simulations in parallel.
+
+  Depends on: pthreads
+
+draw.[ch]
+  Renders the changes from a state_change_buffer retrieved
+  from the methods in conway.[ch].
+
+  Depends on: SDL2, conway.h
+
+load.[ch]
+  Contains file parsing methods for loading cells and rle data.
+
+  Depends on: conway.h
+
+work_queue.[ch]
+  Contains a work queue used for scheduling processing of cells.
+  Uses pthread mutexes and condition variables.
+
+  Depends on: pthreads
