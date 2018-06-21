@@ -9,6 +9,8 @@
 #include "draw.h"
 #endif
 
+#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
+
 #include <unistd.h> /* getopt, opatrg, optind */
 #include <time.h>   /* nanosleep */
 #include <string.h> /* strtok */
@@ -43,15 +45,11 @@ static void do_update(void *p, int run)
 }
 #endif /* DBG_SILENT */
 
-
 int main(int argc, char *argv[])
 {
-	if (BUCKETSZ % VALUE_BIT) {
-		fprintf(stderr, "Size of bucket (%i) must be evenly divisible "
-		                "by number of bytes in the value-word\n",
-		        BUCKETSZ);
-		return 1;
-	}
+	// Size of bucket(BUCKETSZ) must be evenly divisible by the number
+	// of bytes in the value-word.
+	BUILD_BUG_ON(BUCKETSZ % VALUE_BIT);
 
 #ifndef DBG_SILENT
 	struct draw display;

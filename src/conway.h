@@ -1,14 +1,35 @@
 
 #include <stdint.h>
 
+/*
+ * Change the coordinate type to any unsigned integer.
+ * The coordinate value affects the size of the available
+ * space.
+ * Must be unsigned, for defined wrap-around.
+ */
 #define COORD_MAX UINT16_MAX
 typedef uint16_t coordinate;
 
+/*
+ * Controls what integer type is used for the cell-bitmap
+ * in each bucket.
+ */
 #define VALUE_BIT (8*sizeof(unsigned char))
 typedef unsigned char value;
 
 
+/*
+ * Controls the number of cells in each bucket.
+ * Each bucket is a square with sides of length BUCKETSZ.
+ * Must be evenly divisible by value, as all bits are
+ * assumed to be used in order to perform fast checks
+ * for empty buckets.
+ */
 #define BUCKETSZ 16
+/*
+ * Controls the maximum number of child node and buckets
+ * in a quadtree node before it is split.
+ */
 #define QUADSZ 4
 
 struct bucket {
